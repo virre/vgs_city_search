@@ -1,0 +1,126 @@
+<?php
+
+  module_load_include('php', 'vgs_search', 'includes/veganistan');
+
+
+
+/**
+* Implements hook_menu().
+*/
+function vgs_search_menu() {
+	$items = array();
+ 	$items['sok/stadsdel_sthlm'] = array(
+    	'title' => t('City-district Stockholm search'),
+    	'page callback' => 'drupal_get_form',
+    	'page arguments' => array('vgs_search_district_sthlm_form'),
+    	'access arguments' => array('access content'),
+  	);
+	return $items;
+}
+
+/** Create a theme function that maps your custom name to a template */
+function vgs_search_theme()
+{
+  return array(
+    'vgs_district_search' => array(
+      'template' => 'district-search',
+      'path' => drupal_get_path('module', 'vgs_search') . '/templates')
+  );
+}
+
+/**
+* Custom callback function.
+*/
+function vgs_search_district_sthlm_form($form, &$form_state) {
+	if (!empty($form_state['values']['city_district_sthlm'])) {
+		$form['result'] = array(
+      		'#markup' => $form_state['vgs_district_search']['search_results'],
+    	);
+	}
+ 	$form['sok']['city_district_sthlm'] = array(
+		'#type' => 'radios',
+		'#title' => t('City-district to'),
+		'#options' => array(
+			'Norrmalm' => 'Norrmalm och Gamla Stan', 
+			'Kungsholmen' => 'Kungsholmen',
+			'Vasastaden' => 'Vasastaden',
+			'Östermalm' => 'Östermalm, Gärdet och Djurgården',
+			'Södermalm' => 'Södermalm och Liljeholmen'
+		),
+	);
+	$form['submit'] = array(
+		'#type' => 'submit',
+		'#value' => t('Search'),
+	);
+  return $form;
+}
+
+
+/**
+ * Validates the form.
+ */
+function vgs_search_district_sthlm_form_validate($form, &$form_state) {
+	$district = $form_state['values']['city_district_sthlm'];
+	if (!is_string($district)) {
+		form_set_error('city_district_sthlm', t("No district selected"));
+	}
+}
+
+/**
+ * Add a submit handler/function to the form.
+ *
+ * This will add a completion message to the screen when the
+ * form successfully processes
+ */
+function vgs_search_district_sthlm_form_submit($form, &$form_state) {
+	$district = $form_state['values']['city_district_sthlm'];
+	$vgs = new Veganistan();
+	$zipcodes = $vgs->stockholm_districts[$district];
+	foreach ($zipcodes as $zip) {
+		if ($entitys = vgs_search_zip($zip)) {
+					$results[$zip] = $entitys;
+		}
+	}
+	$html = ""; 
+	if (empty($results)) {
+		/* TODO: Should use t() instead of hardcoded string of course */
+		$html = "Inga resultat för $district";
+		$form_state['rebuild'] = TRUE; 
+	  	$form_state['vgs_district_search']['search_results'] = theme('vgs_district_search', array('link_list' => $html));
+	  	return;
+	}
+	foreach ($results as $result) {
+		$entity = entity_load_single($result[0]->{'entity_type'}, $result[0]->{'entity_id'});
+		/* TODO: Make a template for this content */ 
+		$locality = $entity->{'field_adress'}['und'][0]['locality'];
+		$title = $entity->{'title'};
+		$html .= "<li><a href='/$locality/$title'>$title</a></li>";
+	}
+	  #render(theme('vgs_district_search', array('link_list' => $html)));
+	//return theme('vgs_district_search'); //$output;	
+	  $form_state['rebuild'] = TRUE; 
+	  $form_state['vgs_district_search']['search_results'] = theme('vgs_district_search', array('link_list' => $html));
+
+}
+
+/**
+ * Make a custom database query for places that are in the selected zipcodes. 
+ *
+ * @param string $zipcode. 
+ *  Five number zipcode as string.
+ *
+ * @return array. 
+ *  Returns an array of entity ids.
+ */
+function vgs_search_zip($zipcode) {
+	$result = db_query('SELECT entity_id, entity_type
+                      FROM {field_data_field_adress} f
+                      WHERE f.field_adress_postal_code like :zip'
+                      ,array(':zip' => "%".$zipcode."%")
+                      )->fetchAll();
+	return $result;
+}
+ 
+ 
+ 
+
