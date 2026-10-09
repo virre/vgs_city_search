@@ -1,5 +1,7 @@
 VGS Stockholm inner city district search
 ===
+** DEPRECATED** 
+Veganistan no longer exists so this project do not in fact have a reason to exist.
 
 Introduction
 ---
